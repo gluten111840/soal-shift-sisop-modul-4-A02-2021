@@ -10,14 +10,31 @@
 
 #define KEY "SISOP"
 
-static  const  char *dirpath = "/home/ananda/Downloads";
-
+static const char *dirpath = "/home/bayuekap/Downloads";
+static const char *logpath = "/home/bayuekap/SinSeiFS.log";
 
 void checkFile() {
     if(access("fuseLog.txt", F_OK )) {
 		FILE *fp = fopen("fuseLog.txt", "w+");
 		fclose(fp);
 	} 
+}
+
+void makeLog(char *level, char *desc)
+{
+    FILE * fp;
+    fp = fopen (logpath, "a+");
+
+    time_t rawtime = time(NULL);
+    struct tm *ambilrawtime = localtime(&rawtime);
+    
+    char time[100];
+    strftime(time, 100, "%d%m%y-%H:%M:%S", ambilrawtime);
+    char log[100];
+    sprintf(log, "%s::%s::%s\n", level, time, desc);
+    fputs(log, fp);
+
+    fclose(fp);
 }
 
 char *strrev(char *str)
@@ -377,6 +394,11 @@ static int xmp_mkdir(const char *path, mode_t mode) {
     if(res == -1) {
         return -errno;
     }
+
+    char desc[100];
+    sprintf(desc, "MKDIR::%s", fullPath);
+    makeLog("INFO", desc);
+
     return 0;
 }
 
@@ -410,6 +432,10 @@ static int xmp_rename(const char *from, const char *to)
 	res = rename(oldRPath, newRPath);
 	if (res == -1)
 		return -errno;
+
+    char desc[100];
+    sprintf(desc, "RENAME::%s::%s", oldRPath, newRPath);
+    makeLog("INFO", desc);
 
 	return 0;
 }
