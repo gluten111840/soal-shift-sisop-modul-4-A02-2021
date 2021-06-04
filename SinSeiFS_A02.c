@@ -23,15 +23,13 @@ void checkFile() {
 void makeLog(char *level, char *desc)
 {
     FILE * fp;
+    char waktu[100];
+    char log[100];
     fp = fopen (logpath, "a+");
-
     time_t rawtime = time(NULL);
     struct tm *ambilrawtime = localtime(&rawtime);
-    
-    char time[100];
-    strftime(time, 100, "%d%m%y-%H:%M:%S", ambilrawtime);
-    char log[100];
-    sprintf(log, "%s::%s::%s\n", level, time, desc);
+    strftime(waktu, 100, "%d%m%y-%H:%M:%S", ambilrawtime);
+    sprintf(log, "%s::%s::%s\n", level, waktu, desc);
     fputs(log, fp);
 
     fclose(fp);
