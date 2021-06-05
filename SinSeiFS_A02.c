@@ -754,7 +754,7 @@ static int xmp_create(const char* path, mode_t mode, struct fuse_file_info* fi) 
         sprintf(fullPath, "%s%s", dirpath, path);
     }
 
-    res = create(fullPath, mode);
+    res = creat(fullPath, mode);
     if(res == -1)
 	return -errno;
 
