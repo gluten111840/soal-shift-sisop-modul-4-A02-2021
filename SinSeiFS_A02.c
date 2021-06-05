@@ -9,9 +9,22 @@
 #include <sys/time.h>
 
 #define KEY "SISOP"
+#define dirListSize 1000
 
-static const char *dirpath = "/home/bayuekap/Downloads";
-static const char *logpath = "/home/bayuekap/SinSeiFS.log";
+static const char *dirpath = "/home/[User]/izone";
+static const char *logpath = "/home/[User]/SinSeiFS.log";
+
+int lastRXIndex;
+
+struct encryptedDir{
+    char filepath[1000];
+    /*  encodeType = 1 >>> atBash + rot13
+        encodeType = 2 >>> atBash + vigenere
+    */
+    int encodeType;
+};
+
+struct encryptedDir dirList[dirListSize];
 
 void checkFile() {
     if(access("fuseLog.txt", F_OK )) {
@@ -20,76 +33,83 @@ void checkFile() {
 	} 
 }
 
+int findRXDir(char *filename) {
+    int i;
+    for(i = 0; i <= lastRXIndex; i++) {
+        if(!strcmp(dirList[i].filepath, filename))
+            return i;
+    }
+    return 0;
+}
+
+void removeRXDir(char *filename) {
+    int i, found = 0;
+    for(i = 0; i < lastRXIndex; i++) {
+        if(!found) {
+            if(!strcmp(dirList[i].filepath, filename)) {
+                found = 1;
+                dirList[i] = dirList[i+1];
+            }
+        } else {
+            dirList[i] = dirList[i+1];
+        }
+    }
+    lastRXIndex--;
+}
+
 void makeLog(char *level, char *desc)
 {
     FILE * fp;
-    char waktu[100];
-    char log[100];
+    char waktu[1000];
+    char log[3000];
     fp = fopen (logpath, "a+");
     time_t rawtime = time(NULL);
     struct tm *ambilrawtime = localtime(&rawtime);
-    strftime(waktu, 100, "%d%m%y-%H:%M:%S", ambilrawtime);
+    strftime(waktu, 3001, "%d%m%Y-%H:%M:%S", ambilrawtime);
     sprintf(log, "%s::%s::%s\n", level, waktu, desc);
+    printf("%s\n", log);
     fputs(log, fp);
 
     fclose(fp);
 }
 
-char *strrev(char *str)
-{
-      char *p1, *p2;
-
-      if (!str || !*str)
-            return str;
-      for (p1 = str, p2 = str + strlen(str) - 1; p2 > p1; ++p1, --p2)
-      {
-            *p1 ^= *p2;
-            *p2 ^= *p1;
-            *p1 ^= *p2;
-      }
-      return str;
-}
-
 void getFromBehind(char delim, char string[], char substr[]) {
-	int in = 0, cur = strlen(string) - 1;
-	char temp[1024];
-	strcpy(temp, string);
-	while(temp[cur] != delim){
-		if(cur < 0) break;
-		substr[in] = temp[cur];
-        in++;
-        temp[cur] = '\0';
-        cur--;
-	}
-	substr[in] = temp[cur];
-    temp[cur] = '\0';
-	substr[++in] = '\0';
-
-	if(strcmp(temp, "")) {
-		strcpy(string, temp);
-		strrev(substr);
-	} else {
-		substr[0] = '\0';
-	}
-	printf("\e[36m%s\e[0m", string);
-
+    bzero(substr, sizeof(substr));
+    // strcpy(substr, strrchr(string, delim));
+    sprintf(substr, "%s", strrchr(string, delim));
+    
+    char *ptr = strrchr(string, delim);
+    *ptr = '\0';
+    if(!strcmp(substr, "")) {
+        *substr = '\0';
+    }
 }
 
+/*
+    Mode 0 = folder
+    Mode 1 = file
+*/
 void atBash(char *string, char *ext, int mode) {
 	int i;
+    bzero(ext, sizeof(ext));
+    printf("\e[36mATBASH : %s%s >> ", string, ext);
     if(mode)
 	    getFromBehind('.', string, ext);
 	for(i = 0; i < strlen(string); i++) {
-		if(string[i] >= 'A' && string[i] <= 'N') {
-            string[i] = 'N' - (string[i] - 'A');
+		if(string[i] >= 'A' && string[i] <= 'Z') {
+            string[i] = 'Z' - (string[i] - 'A');
 		}
 		if(string[i] >= 'a' && string[i] <= 'z') {
 			string[i] = 'z' - (string[i] - 'a');
 		}
 	}
-    printf("ATBASH : %s%s\n", string, ext);
+    printf("%s%s\e[0m\n", string, ext);
 }
 
+/*
+    Mode 0 = folder
+    Mode 1 = file
+*/
 void rot13(char *string, char *ext, int mode) {
 	int i;
     if(mode)
@@ -113,14 +133,18 @@ void rot13(char *string, char *ext, int mode) {
     printf("ROT13  : %s%s\n", string, ext);
 }
 
+/*
+    Mode 0 = folder
+    Mode 1 = file
+*/
 void vignereEncrypt(char *message, char *key, int mode) {
-    printf("\e[31mENCRYPT : %s >>> ", message);
+    printf("\e[34mE VIGNERE : %s >>> ", message);
     char temp[1000];
     char ext[20];
     
     if(mode)
 	    getFromBehind('.', message, ext);
-    strcpy(temp, message);
+    sprintf(temp, "%s", message);
 
     int i = 0, curKey = 0;
     for(i = 0; i < strlen(message); i++) {
@@ -151,15 +175,19 @@ void vignereEncrypt(char *message, char *key, int mode) {
     printf("%s\e[0m\n", message);
 }
 
+/*
+    Mode 0 = folder
+    Mode 1 = file
+*/
 void vignereDecrypt(char *message, char *key, int mode) {
-    printf("\e[32mDECRYPT : %s >>> ", message);
+    printf("\e[34mD VIGNERE : %s >>> ", message);
     
     char temp[1000];
     char ext[20];
 
     if(mode)
 	    getFromBehind('.', message, ext);
-    strcpy(temp, message);
+    sprintf(temp, "%s", message);
 
     int i = 0, curKey = 0;
     for(i = 0; i < strlen(message); i++) {
@@ -209,22 +237,64 @@ void renameRecursiveAtBash(const char *path) {
         char newPath[1100];
         char ext[20];
 
-        strcpy(filename, de->d_name);
+        bzero(filename, sizeof(filename));
+        sprintf(filename, "%s", de->d_name);
 
+        // printf("\e[31m%s\e[0m\n", filename);
         if(de->d_type == DT_DIR)
             atBash(filename, ext, 0);
         else
             atBash(filename, ext, 1);
 
+        bzero(oldPath, sizeof(oldPath));
+        bzero(newPath, sizeof(newPath));
         sprintf(oldPath, "%s/%s", path, de->d_name);
         sprintf(newPath, "%s/%s%s", path, filename, ext);
 
-        if(de->d_type == DT_DIR && !strstr(filename, "AtoZ_") && !strstr(de->d_name, "AtoZ_")) {
+        if(de->d_type == DT_DIR) {
             renameRecursiveAtBash(oldPath);
         }
 
-        printf("oldPath : %s\n", oldPath);
-        printf("newPath : %s\n", newPath);
+        rename(oldPath, newPath);
+
+    }
+
+    closedir(dp);
+}
+
+void renameRecursiveRot13(const char *path) {
+    DIR *dp;
+    struct dirent *de;
+
+    dp = opendir(path);
+
+    if (dp == NULL) return;
+
+    while ((de = readdir(dp)) != NULL) {
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+        char filename[100];
+        char oldPath[1100];
+        char newPath[1100];
+        char ext[20];
+
+        bzero(filename, sizeof(filename));
+        sprintf(filename, "%s", de->d_name);
+
+        // printf("\e[31m%s\e[0m\n", filename);
+        if(de->d_type == DT_DIR)
+            rot13(filename, ext, 0);
+        else
+            rot13(filename, ext, 1);
+
+        bzero(oldPath, sizeof(oldPath));
+        bzero(newPath, sizeof(newPath));
+        sprintf(oldPath, "%s/%s", path, de->d_name);
+        sprintf(newPath, "%s/%s%s", path, filename, ext);
+
+        if(de->d_type == DT_DIR) {
+            renameRecursiveAtBash(oldPath);
+        }
+
         rename(oldPath, newPath);
 
     }
@@ -250,7 +320,7 @@ void renameRecursiveVignere(const char *path, int mode) {
         char oldPath[1100];
         char newPath[1100];
 
-        strcpy(filename, de->d_name);
+        sprintf(filename, "%s", de->d_name);
         
         if(mode){
             if(de->d_type == DT_DIR)
@@ -267,19 +337,148 @@ void renameRecursiveVignere(const char *path, int mode) {
         sprintf(oldPath, "%s/%s", path, de->d_name);
         sprintf(newPath, "%s/%s", path, filename);
 
-        if(de->d_type == DT_DIR /*&& !strstr(filename, "RX_") && !strstr(de->d_name, "RX_")*/) {
+        if(de->d_type == DT_DIR) {
             if(mode)
                 renameRecursiveVignere(oldPath, 1);
             else
                 renameRecursiveVignere(oldPath, 0);
         }
 
-        printf("oldPath : %s\n", oldPath);
-        printf("newPath : %s\n", newPath);
+        // printf("oldPath : %s\n", oldPath);
+        // printf("newPath : %s\n", newPath);
         rename(oldPath, newPath);
     }
 
     closedir(dp);
+}
+
+void splitFile(char *path) {
+    DIR *dp;
+    struct dirent *de;
+
+    dp = opendir(path);
+
+    if (dp == NULL) return;
+
+    while ((de = readdir(dp)) != NULL) {
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+            continue;
+
+        char curPath[1000];
+        bzero(curPath, sizeof(curPath));
+        sprintf(curPath, "%s/%s", path, de->d_name);
+        printf("<<->> %s\n", curPath);
+
+        if(de->d_type == DT_DIR) {
+            splitFile(curPath);
+        }
+
+        if(de->d_type == DT_REG) {
+            FILE *curFile = fopen(curPath, "rb");
+
+            struct stat fileStat;
+            memset(&fileStat, 0, sizeof(fileStat));
+            lstat(curPath, &fileStat);
+            long fileSize = fileStat.st_size;
+
+            printf("\e[35mPartitioning File: %s\e[34m\n", curPath);
+            int fileIndex = 0, curSize;
+            while(fileSize > 0) {
+                char newFilePath[1100];
+                char buffer[1024];
+
+                sprintf(newFilePath, "%s.%03d", curPath, fileIndex);
+                fileIndex++;
+
+                if(fileSize > 1024) {
+                    curSize = 1024;
+                    fileSize -= 1024;
+                } else {
+                    curSize = fileSize;
+                    fileSize = 0;
+                }
+
+                bzero(buffer, sizeof(buffer));
+                fread(buffer, 1, curSize, curFile);
+
+                printf(".%03d ", fileIndex);
+                FILE *newFile = fopen(newFilePath, "wb");
+                fwrite(buffer, 1, curSize, newFile);
+                fclose(newFile);
+            }
+            printf("\e[0m\n");
+            fclose(curFile);
+            remove(curPath);
+        }
+    }
+}
+
+void unsplitFile(char *path) {
+    DIR *dp;
+    struct dirent *de;
+
+    dp = opendir(path);
+
+    if (dp == NULL) return;
+    printf("\e[31mIn Folder: %s\e[0m\n", path);
+
+    while ((de = readdir(dp)) != NULL) {
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+            continue;
+
+        char curPath[1000];
+        sprintf(curPath, "%s/%s", path, de->d_name);
+        // printf("curPath: %s\n", curPath);
+
+        if(de->d_type == DT_DIR) {
+            unsplitFile(curPath);
+        }
+
+        if(de->d_type == DT_REG) {
+            char fileNumber[10], filename[100];
+            bzero(fileNumber, sizeof(fileNumber));
+            bzero(filename, sizeof(filename));
+            sprintf(filename, "%s", de->d_name);
+
+            getFromBehind('.', filename, fileNumber);
+            if(strcmp(fileNumber, ".000")) continue;
+
+            char realFilepath[1000];
+            sprintf(realFilepath, "%s/%s", path, filename);
+            printf("\e[35mCombining File: %s\e[0m\n", realFilepath);
+
+            struct stat fileStat;
+            memset(&fileStat, 0, sizeof(fileStat));
+            
+            FILE *realFile = fopen(realFilepath, "wb");
+            int fileIndex = 0;
+            printf("\e[34mFile Parts: \n");
+            while(1) {
+                char partFilepath[1100];
+                char buffer[1024];
+
+                sprintf(partFilepath, "%s.%03d", realFilepath, fileIndex);
+                fileIndex++;
+
+                if(access(partFilepath, F_OK)) break;
+
+                FILE *curPart = fopen(partFilepath, "rb");
+                printf(".%03d ", fileIndex);
+
+                lstat(partFilepath, &fileStat);
+                int curSize = fileStat.st_size;
+                
+                bzero(buffer, sizeof(buffer));
+
+                fread(buffer, 1, curSize, curPart);
+                fwrite(buffer, 1, curSize, realFile);
+                fclose(curPart);
+                remove(partFilepath);
+            }
+            fclose(realFile);
+            printf("\e[0m\n");
+        }
+    }
 }
 
 static  int  xmp_getattr(const char *path, struct stat *stbuf)
@@ -289,7 +488,8 @@ static  int  xmp_getattr(const char *path, struct stat *stbuf)
 
     sprintf(fullPath,"%s%s",dirpath,path);
 
-    printf("\e[32mGETATTR  > %s\e[0m\n\n", fullPath);
+    if(!strstr(fullPath, "/."))
+        printf("\e[32m    GETATTR > %s\e[0m\n", path);
 
     res = lstat(fullPath, stbuf);
 
@@ -298,19 +498,17 @@ static  int  xmp_getattr(const char *path, struct stat *stbuf)
     return 0;
 }
 
-
-
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
     char fullPath[1000];
 
-    if(strcmp(path,"/") == 0)
-    {
+    if(strcmp(path,"/") == 0) {
         path=dirpath;
         sprintf(fullPath,"%s",path);
-    } else sprintf(fullPath, "%s%s",dirpath,path);
+    } else
+        sprintf(fullPath, "%s%s",dirpath,path);
 
-    printf("\e[32mREADDIR  > %s\e[0m\n\n", path);
+    printf("\e[33m  READDIR > %s\e[0m\n", path);
 
     int res = 0;
 
@@ -325,7 +523,6 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
     while ((de = readdir(dp)) != NULL) {
         struct stat st;
-
         memset(&st, 0, sizeof(st));
 
         st.st_ino = de->d_ino;
@@ -344,12 +541,12 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset, stru
 {
     char fullPath[1000];
     
-    if(strcmp(path,"/") == 0)
-    {
+    if(strcmp(path,"/") == 0) {
         path = dirpath;
         sprintf(fullPath,"%s",path);
     }
-    else sprintf(fullPath, "%s%s",dirpath,path);
+    else
+        sprintf(fullPath, "%s%s",dirpath,path);
 
     int res = 0;
     int fd = 0 ;
@@ -357,15 +554,12 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset, stru
     (void) fi;
 
     fd = open(fullPath, O_RDONLY);
-
     if (fd == -1) return -errno;
 
     res = pread(fd, buf, size, offset);
-
     if (res == -1) res = -errno;
 
     close(fd);
-
 
     return res;
 }
@@ -375,17 +569,44 @@ static int xmp_mkdir(const char *path, mode_t mode) {
     char filename[100], ext[20];
     char curPath[1000], fullPath[1280];
 
-    printf("\e[31mMKDIR  > %s\e[0m\n\n", path);
-    
-    if(strstr(path, "AtoZ_")) {
-        sprintf(fullPath, "%s%s", dirpath, path);
+    bzero(curPath, sizeof(curPath));
+    sprintf(curPath, "%s", path);
 
+    bzero(filename, sizeof(filename));
+    getFromBehind('/', curPath, filename);
+
+    if(strstr(filename, "RX_")) {
+        strcpy(dirList[lastRXIndex].filepath, filename);
+        dirList[lastRXIndex].encodeType = 1;
+        lastRXIndex++;
+    }
+    
+    if(strstr(curPath, "AtoZ_")) {
+        atBash(filename, ext, 0);
+        printf("\e[37m\t%s %s\e[0m\n", filename, ext);
+        sprintf(fullPath, "%s%s%s%s", dirpath, curPath, filename, ext);
+        
         FILE *log = fopen("fuseLog.txt", "a");
         fprintf(log, "MKDIR: %s\n", fullPath);
         fclose(log);
+    } else if (strstr(curPath, "RX_")) {
+        char rxfilename[200];
+        sprintf(rxfilename, "%s", strstr(curPath, "RX_"));
+        int fileIndex = findRXDir(rxfilename);
+
+        if(dirList[fileIndex].encodeType == 1) {
+            atBash(filename, ext, 0);
+            rot13(filename, ext, 0);
+        } else if(dirList[fileIndex].encodeType == 2) {
+            atBash(filename, ext, 0);
+            vignereEncrypt(filename, ext, 0);
+        }
+        
+        sprintf(fullPath, "%s%s%s%s", dirpath, curPath, filename, ext);
     } else {
         sprintf(fullPath, "%s%s", dirpath, path);
     }
+    printf("\e[36mMKDIR  > %s\e[0m\n", fullPath);
 
     res = mkdir(fullPath, mode);
 
@@ -393,7 +614,7 @@ static int xmp_mkdir(const char *path, mode_t mode) {
         return -errno;
     }
 
-    char desc[100];
+    char desc[1024];
     sprintf(desc, "MKDIR::%s", fullPath);
     makeLog("INFO", desc);
 
@@ -403,15 +624,21 @@ static int xmp_mkdir(const char *path, mode_t mode) {
 static int xmp_rename(const char *from, const char *to)
 {
 	int res;
-    char oldRPath[1000];
-    char newRPath[1000];
+    char curPath[1000], filename[200];
+    char oldRPath[1000], newRPath[1000];
+
+    bzero(curPath, sizeof(curPath));
+    sprintf(curPath, "%s", from);
+
+    bzero(filename, sizeof(filename));
+    getFromBehind('/', curPath, filename);
 
     sprintf(oldRPath, "%s%s", dirpath, from);
     sprintf(newRPath, "%s%s", dirpath, to);
     printf("FROM --> %s\n", from);
     printf("TO   --> %s\n", to);
 
-    // printf("\e[31mRENAME > %s\e[0m\n\n", path);
+    // printf("\e[31mRENAME > %s\e[0m\n", path);
     if(strstr(to, "AtoZ_") && !strstr(from, "AtoZ_")) {
         FILE *log = fopen("fuseLog.txt", "a");
         fprintf(log, "RENAME: %s -> %s\n", oldRPath, newRPath);
@@ -420,18 +647,32 @@ static int xmp_rename(const char *from, const char *to)
     } else if (strstr(from, "AtoZ_") && !strstr(to, "AtoZ_")) {
         renameRecursiveAtBash(oldRPath);
     } else if(strstr(to, "RX_") && !strstr(from, "RX_")) {
+        
+        strcpy(dirList[lastRXIndex].filepath, filename);
+        dirList[lastRXIndex].encodeType = 2;
+        lastRXIndex++;
+    
         renameRecursiveAtBash(oldRPath);
         renameRecursiveVignere(oldRPath, 0);
+        
     } else if(!strstr(to, "RX_") && strstr(from, "RX_")) {
-        renameRecursiveVignere(oldRPath, 1);
-        renameRecursiveAtBash(oldRPath);
+        int fileIndex = findRXDir(filename);
+        if(dirList[fileIndex].encodeType == 1) {
+            renameRecursiveRot13(oldRPath);
+            renameRecursiveAtBash(oldRPath);
+        } else if(dirList[fileIndex].encodeType == 2) {
+            renameRecursiveVignere(oldRPath, 1);
+            renameRecursiveAtBash(oldRPath);
+        }
+
+        removeRXDir(filename);
     }
 
 	res = rename(oldRPath, newRPath);
 	if (res == -1)
 		return -errno;
 
-    char desc[100];
+    char desc[1512];
     sprintf(desc, "RENAME::%s::%s", oldRPath, newRPath);
     makeLog("INFO", desc);
 
@@ -453,4 +694,3 @@ int  main(int  argc, char *argv[])
 
     return fuse_main(argc, argv, &xmp_oper, NULL);
 }
-
