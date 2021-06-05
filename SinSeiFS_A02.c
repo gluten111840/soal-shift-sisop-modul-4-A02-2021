@@ -693,6 +693,10 @@ static int xmp_rmdir(const char *path)
 	if (res == -1)
 		return -errno;
 
+    char desc[1512];
+    sprintf(desc, "RMDIR::%s", fullPath);
+    makeLog("WARNING", desc);
+
 	return 0;
 }
 
@@ -706,6 +710,10 @@ static int xmp_unlink(const char *path)
 	res = unlink(fullPath);
 	if (res == -1)
 		return -errno;
+
+    char desc[1512];
+    sprintf(desc, "UNLINK::%s", fullPath);
+    makeLog("WARNING", desc);
 
 	return 0;
 }
@@ -746,7 +754,7 @@ static int xmp_create(const char* path, mode_t mode, struct fuse_file_info* fi) 
         sprintf(fullPath, "%s%s", dirpath, path);
     }
 
-    res = creat(fullPath, mode);
+    res = create(fullPath, mode);
     if(res == -1)
 	return -errno;
 
