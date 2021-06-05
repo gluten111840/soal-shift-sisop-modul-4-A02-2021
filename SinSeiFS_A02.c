@@ -11,8 +11,8 @@
 #define KEY "SISOP"
 #define dirListSize 1000
 
-static const char *dirpath = "/home/[User]/izone";
-static const char *logpath = "/home/[User]/SinSeiFS.log";
+static const char *dirpath = "/home/ananda/Downloads";
+static const char *logpath = "/home/ananda/SinSeiFS.log";
 
 int lastRXIndex;
 
@@ -344,8 +344,6 @@ void renameRecursiveVignere(const char *path, int mode) {
                 renameRecursiveVignere(oldPath, 0);
         }
 
-        // printf("oldPath : %s\n", oldPath);
-        // printf("newPath : %s\n", newPath);
         rename(oldPath, newPath);
     }
 
@@ -428,7 +426,6 @@ void unsplitFile(char *path) {
 
         char curPath[1000];
         sprintf(curPath, "%s/%s", path, de->d_name);
-        // printf("curPath: %s\n", curPath);
 
         if(de->d_type == DT_DIR) {
             unsplitFile(curPath);
@@ -603,6 +600,9 @@ static int xmp_mkdir(const char *path, mode_t mode) {
         }
         
         sprintf(fullPath, "%s%s%s%s", dirpath, curPath, filename, ext);
+        FILE *log = fopen("fuseLog.txt", "a");
+        fprintf(log, "MKDIR: %s\n", fullPath);
+        fclose(log);
     } else {
         sprintf(fullPath, "%s%s", dirpath, path);
     }
@@ -635,15 +635,15 @@ static int xmp_rename(const char *from, const char *to)
 
     sprintf(oldRPath, "%s%s", dirpath, from);
     sprintf(newRPath, "%s%s", dirpath, to);
-    printf("FROM --> %s\n", from);
-    printf("TO   --> %s\n", to);
+    printf("RENAME : %s --> %s\n", from, to);
 
     // printf("\e[31mRENAME > %s\e[0m\n", path);
     if(strstr(to, "AtoZ_") && !strstr(from, "AtoZ_")) {
+        renameRecursiveAtBash(oldRPath);
+
         FILE *log = fopen("fuseLog.txt", "a");
         fprintf(log, "RENAME: %s -> %s\n", oldRPath, newRPath);
         fclose(log);
-        renameRecursiveAtBash(oldRPath);
     } else if (strstr(from, "AtoZ_") && !strstr(to, "AtoZ_")) {
         renameRecursiveAtBash(oldRPath);
     } else if(strstr(to, "RX_") && !strstr(from, "RX_")) {
@@ -655,6 +655,9 @@ static int xmp_rename(const char *from, const char *to)
         renameRecursiveAtBash(oldRPath);
         renameRecursiveVignere(oldRPath, 0);
         
+        FILE *log = fopen("fuseLog.txt", "a");
+        fprintf(log, "RENAME: %s -> %s\n", oldRPath, newRPath);
+        fclose(log);
     } else if(!strstr(to, "RX_") && strstr(from, "RX_")) {
         int fileIndex = findRXDir(filename);
         if(dirList[fileIndex].encodeType == 1) {
@@ -679,11 +682,87 @@ static int xmp_rename(const char *from, const char *to)
 	return 0;
 }
 
+static int xmp_rmdir(const char *path)
+{
+	int res;
+    char fullPath[1000];
+
+    sprintf(fullPath, "%s%s", dirpath, path);
+
+	res = rmdir(fullPath);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int xmp_unlink(const char *path)
+{
+	int res;
+    char fullPath[1000];
+
+    sprintf(fullPath, "%s%s", dirpath, path);
+
+	res = unlink(fullPath);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int xmp_create(const char* path, mode_t mode, struct fuse_file_info* fi) {
+
+    (void) fi;
+
+    int res;
+    char leftPath[1000], filename[200], ext[50];
+    char fullPath[1000];
+
+    bzero(leftPath, sizeof(leftPath));
+    sprintf(leftPath, "%s", path);
+
+    bzero(filename, sizeof(filename));
+    getFromBehind('/', leftPath, filename);
+
+    
+    if(strstr(leftPath, "AtoZ_")) {
+        atBash(filename, ext, 1);
+
+        sprintf(fullPath, "%s%s%s%s", dirpath, leftPath, filename, ext);
+
+        FILE *log = fopen("fuseLog.txt", "a");
+        fprintf(log, "CREATE: %s\n", fullPath);
+        fclose(log);
+    } else if(strstr(leftPath, "RX_")) {
+        atBash(filename, ext, 1);
+        vignereEncrypt(filename, ext, 1);
+
+        sprintf(fullPath, "%s%s%s%s", dirpath, leftPath, filename, ext);
+        
+        FILE *log = fopen("fuseLog.txt", "a");
+        fprintf(log, "CREATE: %s\n", fullPath);
+        fclose(log);
+    } else {
+        sprintf(fullPath, "%s%s", dirpath, path);
+    }
+
+    res = creat(fullPath, mode);
+    if(res == -1)
+	return -errno;
+
+    close(res);
+
+    return 0;
+}
+
 static struct fuse_operations xmp_oper = {
     .getattr = xmp_getattr,
     .readdir = xmp_readdir,
-    .mkdir = xmp_mkdir,
     .rename = xmp_rename,
+    .unlink	= xmp_unlink,
+    .create = xmp_create,
+	.rmdir = xmp_rmdir,
+    .mkdir = xmp_mkdir,
     .read = xmp_read,
 };
 
