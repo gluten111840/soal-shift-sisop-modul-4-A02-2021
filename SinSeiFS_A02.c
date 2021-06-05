@@ -11,8 +11,10 @@
 #define KEY "SISOP"
 #define dirListSize 1000
 
-static  const  char *dirpath = "/home/ananda/Downloads";
+static const char *dirpath = "/home/ananda/Downloads";
 static const char *logpath = "/home/bayuekap/SinSeiFS.log";
+
+int lastRXIndex;
 
 struct encryptedDir{
     char filepath[1000];
@@ -31,11 +33,35 @@ void checkFile() {
 	} 
 }
 
+int findRXDir(char *filename) {
+    int i;
+    for(i = 0; i <= lastRXIndex; i++) {
+        if(!strcmp(dirList[i].filepath, filename))
+            return i;
+    }
+    return 0;
+}
+
+void removeRXDir(char *filename) {
+    int i, found = 0;
+    for(i = 0; i < lastRXIndex; i++) {
+        if(!found) {
+            if(!strcmp(dirList[i].filepath, filename)) {
+                found = 1;
+                dirList[i] = dirList[i+1];
+            }
+        } else {
+            dirList[i] = dirList[i+1];
+        }
+    }
+    lastRXIndex--;
+}
+
 void makeLog(char *level, char *desc)
 {
     FILE * fp;
-    char waktu[100];
-    char log[100];
+    char waktu[1000];
+    char log[3000];
     fp = fopen (logpath, "a+");
     time_t rawtime = time(NULL);
     struct tm *ambilrawtime = localtime(&rawtime);
@@ -44,21 +70,6 @@ void makeLog(char *level, char *desc)
     fputs(log, fp);
 
     fclose(fp);
-}
-
-char *strrev(char *str)
-{
-      char *p1, *p2;
-
-      if (!str || !*str)
-            return str;
-      for (p1 = str, p2 = str + strlen(str) - 1; p2 > p1; ++p1, --p2)
-      {
-            *p1 ^= *p2;
-            *p2 ^= *p1;
-            *p1 ^= *p2;
-      }
-      return str;
 }
 
 void getFromBehind(char delim, char string[], char substr[]) {
@@ -94,6 +105,10 @@ void atBash(char *string, char *ext, int mode) {
     printf("%s%s\e[0m\n", string, ext);
 }
 
+/*
+    Mode 0 = folder
+    Mode 1 = file
+*/
 void rot13(char *string, char *ext, int mode) {
 	int i;
     if(mode)
@@ -117,6 +132,10 @@ void rot13(char *string, char *ext, int mode) {
     printf("ROT13  : %s%s\n", string, ext);
 }
 
+/*
+    Mode 0 = folder
+    Mode 1 = file
+*/
 void vignereEncrypt(char *message, char *key, int mode) {
     printf("\e[34mE VIGNERE : %s >>> ", message);
     char temp[1000];
@@ -155,6 +174,10 @@ void vignereEncrypt(char *message, char *key, int mode) {
     printf("%s\e[0m\n", message);
 }
 
+/*
+    Mode 0 = folder
+    Mode 1 = file
+*/
 void vignereDecrypt(char *message, char *key, int mode) {
     printf("\e[34mD VIGNERE : %s >>> ", message);
     
@@ -216,7 +239,7 @@ void renameRecursiveAtBash(const char *path) {
         bzero(filename, sizeof(filename));
         sprintf(filename, "%s", de->d_name);
 
-        printf("\e[31m%s\e[0m\n", filename);
+        // printf("\e[31m%s\e[0m\n", filename);
         if(de->d_type == DT_DIR)
             atBash(filename, ext, 0);
         else
@@ -227,7 +250,47 @@ void renameRecursiveAtBash(const char *path) {
         sprintf(oldPath, "%s/%s", path, de->d_name);
         sprintf(newPath, "%s/%s%s", path, filename, ext);
 
-        if(de->d_type == DT_DIR && !strstr(filename, "AtoZ_") && !strstr(de->d_name, "AtoZ_")) {
+        if(de->d_type == DT_DIR) {
+            renameRecursiveAtBash(oldPath);
+        }
+
+        rename(oldPath, newPath);
+
+    }
+
+    closedir(dp);
+}
+
+void renameRecursiveRot13(const char *path) {
+    DIR *dp;
+    struct dirent *de;
+
+    dp = opendir(path);
+
+    if (dp == NULL) return;
+
+    while ((de = readdir(dp)) != NULL) {
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+        char filename[100];
+        char oldPath[1100];
+        char newPath[1100];
+        char ext[20];
+
+        bzero(filename, sizeof(filename));
+        sprintf(filename, "%s", de->d_name);
+
+        // printf("\e[31m%s\e[0m\n", filename);
+        if(de->d_type == DT_DIR)
+            rot13(filename, ext, 0);
+        else
+            rot13(filename, ext, 1);
+
+        bzero(oldPath, sizeof(oldPath));
+        bzero(newPath, sizeof(newPath));
+        sprintf(oldPath, "%s/%s", path, de->d_name);
+        sprintf(newPath, "%s/%s%s", path, filename, ext);
+
+        if(de->d_type == DT_DIR) {
             renameRecursiveAtBash(oldPath);
         }
 
@@ -273,7 +336,7 @@ void renameRecursiveVignere(const char *path, int mode) {
         sprintf(oldPath, "%s/%s", path, de->d_name);
         sprintf(newPath, "%s/%s", path, filename);
 
-        if(de->d_type == DT_DIR /*&& !strstr(filename, "RX_") && !strstr(de->d_name, "RX_")*/) {
+        if(de->d_type == DT_DIR) {
             if(mode)
                 renameRecursiveVignere(oldPath, 1);
             else
@@ -438,11 +501,11 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 {
     char fullPath[1000];
 
-    if(strcmp(path,"/") == 0)
-    {
+    if(strcmp(path,"/") == 0) {
         path=dirpath;
         sprintf(fullPath,"%s",path);
-    } else sprintf(fullPath, "%s%s",dirpath,path);
+    } else
+        sprintf(fullPath, "%s%s",dirpath,path);
 
     printf("\e[33m  READDIR > %s\e[0m\n", path);
 
@@ -477,12 +540,12 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset, stru
 {
     char fullPath[1000];
     
-    if(strcmp(path,"/") == 0)
-    {
+    if(strcmp(path,"/") == 0) {
         path = dirpath;
         sprintf(fullPath,"%s",path);
     }
-    else sprintf(fullPath, "%s%s",dirpath,path);
+    else
+        sprintf(fullPath, "%s%s",dirpath,path);
 
     int res = 0;
     int fd = 0 ;
@@ -490,15 +553,12 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset, stru
     (void) fi;
 
     fd = open(fullPath, O_RDONLY);
-
     if (fd == -1) return -errno;
 
     res = pread(fd, buf, size, offset);
-
     if (res == -1) res = -errno;
 
     close(fd);
-
 
     return res;
 }
@@ -513,17 +573,35 @@ static int xmp_mkdir(const char *path, mode_t mode) {
 
     bzero(filename, sizeof(filename));
     getFromBehind('/', curPath, filename);
+
+    if(strstr(filename, "RX_")) {
+        strcpy(dirList[lastRXIndex].filepath, filename);
+        dirList[lastRXIndex].encodeType = 1;
+        lastRXIndex++;
+    }
     
     if(strstr(curPath, "AtoZ_")) {
         atBash(filename, ext, 0);
         printf("\e[37m\t%s %s\e[0m\n", filename, ext);
         sprintf(fullPath, "%s%s%s%s", dirpath, curPath, filename, ext);
-        // exit(1);
+        
         FILE *log = fopen("fuseLog.txt", "a");
         fprintf(log, "MKDIR: %s\n", fullPath);
         fclose(log);
     } else if (strstr(curPath, "RX_")) {
+        char rxfilename[200];
+        sprintf(rxfilename, "%s", strstr(curPath, "RX_"));
+        int fileIndex = findRXDir(rxfilename);
 
+        if(dirList[fileIndex].encodeType == 1) {
+            atBash(filename, ext, 0);
+            rot13(filename, ext, 0);
+        } else if(dirList[fileIndex].encodeType == 2) {
+            atBash(filename, ext, 0);
+            vignereEncrypt(filename, ext, 0);
+        }
+        
+        sprintf(fullPath, "%s%s%s%s", dirpath, curPath, filename, ext);
     } else {
         sprintf(fullPath, "%s%s", dirpath, path);
     }
@@ -535,9 +613,9 @@ static int xmp_mkdir(const char *path, mode_t mode) {
         return -errno;
     }
 
-    char desc[100];
-    sprintf(desc, "MKDIR::%s", fullPath);
-    makeLog("INFO", desc);
+    // char desc[1024];
+    // sprintf(desc, "MKDIR::%s", fullPath);
+    // makeLog("INFO", desc);
 
     return 0;
 }
@@ -545,8 +623,14 @@ static int xmp_mkdir(const char *path, mode_t mode) {
 static int xmp_rename(const char *from, const char *to)
 {
 	int res;
-    char oldRPath[1000];
-    char newRPath[1000];
+    char curPath[1000], filename[200];
+    char oldRPath[1000], newRPath[1000];
+
+    bzero(curPath, sizeof(curPath));
+    sprintf(curPath, "%s", from);
+
+    bzero(filename, sizeof(filename));
+    getFromBehind('/', curPath, filename);
 
     sprintf(oldRPath, "%s%s", dirpath, from);
     sprintf(newRPath, "%s%s", dirpath, to);
@@ -562,20 +646,34 @@ static int xmp_rename(const char *from, const char *to)
     } else if (strstr(from, "AtoZ_") && !strstr(to, "AtoZ_")) {
         renameRecursiveAtBash(oldRPath);
     } else if(strstr(to, "RX_") && !strstr(from, "RX_")) {
+        
+        strcpy(dirList[lastRXIndex].filepath, filename);
+        dirList[lastRXIndex].encodeType = 2;
+        lastRXIndex++;
+    
         renameRecursiveAtBash(oldRPath);
         renameRecursiveVignere(oldRPath, 0);
+        
     } else if(!strstr(to, "RX_") && strstr(from, "RX_")) {
-        renameRecursiveVignere(oldRPath, 1);
-        renameRecursiveAtBash(oldRPath);
+        int fileIndex = findRXDir(filename);
+        if(dirList[fileIndex].encodeType == 1) {
+            renameRecursiveRot13(oldRPath);
+            renameRecursiveAtBash(oldRPath);
+        } else if(dirList[fileIndex].encodeType == 2) {
+            renameRecursiveVignere(oldRPath, 1);
+            renameRecursiveAtBash(oldRPath);
+        }
+
+        removeRXDir(filename);
     }
 
 	res = rename(oldRPath, newRPath);
 	if (res == -1)
 		return -errno;
 
-    char desc[100];
-    sprintf(desc, "RENAME::%s::%s", oldRPath, newRPath);
-    makeLog("INFO", desc);
+    char desc[1512];
+    // sprintf(desc, "RENAME::%s::%s", oldRPath, newRPath);
+    // makeLog("INFO", desc);
 
 	return 0;
 }
