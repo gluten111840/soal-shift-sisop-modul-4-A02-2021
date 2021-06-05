@@ -26,6 +26,18 @@ struct encryptedDir{
 
 struct encryptedDir dirList[dirListSize];
 
+int lastRXIndex;
+
+struct encryptedDir{
+    char filepath[1000];
+    /*  encodeType = 1 >>> atBash + rot13
+        encodeType = 2 >>> atBash + vigenere
+    */
+    int encodeType;
+};
+
+struct encryptedDir dirList[dirListSize];
+
 void checkFile() {
     if(access("fuseLog.txt", F_OK )) {
 		FILE *fp = fopen("fuseLog.txt", "w+");
