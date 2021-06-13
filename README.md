@@ -23,9 +23,46 @@ Jika sebuah direktori dibuat dengan awalan “AtoZ_”, maka direktori tersebut 
 
 **Penjelasan**</br>
 
-</br>
+Pada soal, diminta bahwa jika kita membuat suatu folder dengan awalan `AtoZ_` maka nama semua yang ada di dalam folder tersebut, akan ter-encode dengan algoritma atbash cipher (mirror) di mana mengubah setiap huruf dengan pasangannya dari belakang (A menjadi Z, B menjadi Y, dsb), seperti pada kode di bawah ini.
+
+```C
+void atBash(char *string, char *ext, int mode) {
+	int i;
+    bzero(ext, sizeof(ext));
+    printf("\e[36mATBASH : %s%s >> ", string, ext);
+    if(mode)
+	    getFromBehind('.', string, ext);
+	for(i = 0; i < strlen(string); i++) {
+		if(string[i] >= 'A' && string[i] <= 'Z') {
+            string[i] = 'Z' - (string[i] - 'A');
+		}
+		if(string[i] >= 'a' && string[i] <= 'z') {
+			string[i] = 'z' - (string[i] - 'a');
+		}
+	}
+    printf("%s%s\e[0m\n", string, ext);
+}
+
+static int xmp_mkdir(const char *path, mode_t mode) {
+    int res;
+    char filename[100], ext[20];
+    char curPath[1000], fullPath[1280];
+    ...
+    if(strstr(curPath, "AtoZ_")) {
+        atBash(filename, ext, 0);
+        printf("\e[37m\t%s %s\e[0m\n", filename, ext);
+        sprintf(fullPath, "%s%s%s%s", dirpath, curPath, filename, ext);
+        
+        FILE *log = fopen("fuseLog.txt", "a");
+        fprintf(log, "MKDIR: %s\n", fullPath);
+        fclose(log);
+    }
+    ...
+}
+```
 
 **Output**</br>
+![Hasil 1a](./Foto/1a.PNG)
 
 ### 1b
 **Soal**</br>
@@ -34,9 +71,82 @@ Jika sebuah direktori di-rename dengan awalan “AtoZ_”, maka direktori terseb
 
 **Penjelasan**</br>
 
-</br>
+Sama seperti pada soal 1a, kita mengimplementasikan encoding pada perintah rename. Ketika kita merename sebuah direktori dengan awalan `AtoZ_`, maka semua yang ada di dalam direktori tersebut akan terenkripsi seperti pada kode di bawah ini. Kita menggunakan fungsi recursive pada fungsi mengubah namanya.
 
+```C
+void renameRecursiveAtBash(const char *path) {
+    DIR *dp;
+    struct dirent *de;
+
+    dp = opendir(path);
+
+    if (dp == NULL) return;
+
+    while ((de = readdir(dp)) != NULL) {
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+        char filename[100];
+        char oldPath[1100];
+        char newPath[1100];
+        char ext[20];
+
+        bzero(filename, sizeof(filename));
+        sprintf(filename, "%s", de->d_name);
+
+        // printf("\e[31m%s\e[0m\n", filename);
+        if(de->d_type == DT_DIR)
+            atBash(filename, ext, 0);
+        else
+            atBash(filename, ext, 1);
+
+        bzero(oldPath, sizeof(oldPath));
+        bzero(newPath, sizeof(newPath));
+        sprintf(oldPath, "%s/%s", path, de->d_name);
+        sprintf(newPath, "%s/%s%s", path, filename, ext);
+
+        if(de->d_type == DT_DIR) {
+            renameRecursiveAtBash(oldPath);
+        }
+
+        rename(oldPath, newPath);
+
+    }
+
+    closedir(dp);
+}
+
+static int xmp_rename(const char *from, const char *to)
+{
+	int res;
+    char curPath[1000], filename[200];
+    char oldRPath[1000], newRPath[1000];
+
+    bzero(curPath, sizeof(curPath));
+    sprintf(curPath, "%s", from);
+
+    bzero(filename, sizeof(filename));
+    getFromBehind('/', curPath, filename);
+
+    sprintf(oldRPath, "%s%s", dirpath, from);
+    sprintf(newRPath, "%s%s", dirpath, to);
+    printf("RENAME : %s --> %s\n", from, to);
+
+    // printf("\e[31mRENAME > %s\e[0m\n", path);
+    if(strstr(to, "AtoZ_") && !strstr(from, "AtoZ_")) {
+        renameRecursiveAtBash(oldRPath);
+
+        FILE *log = fopen("fuseLog.txt", "a");
+        fprintf(log, "RENAME: %s -> %s\n", oldRPath, newRPath);
+        fclose(log);
+    } else if (strstr(from, "AtoZ_") && !strstr(to, "AtoZ_")) {
+        renameRecursiveAtBash(oldRPath);
+    }
+    ...
+}
+```
 **Output**</br>
+![Hasil 1b](./Foto/1b_1.PNG)
+![Hasil 1b](./Foto/1b_2.PNG)
+![Hasil 1b](./Foto/1b_3.PNG)
 
 ### 1c
 **Soal**</br>
@@ -44,10 +154,11 @@ Apabila direktori yang terenkripsi di-rename menjadi tidak ter-encode, maka isi 
 </br>
 
 **Penjelasan**</br>
-
-</br>
+Pada soal ini, kita diminta mendecode apabila sebuah direktori direname dengan menghapus `AtoZ_`, maka isi dari direktori tersebut akan kembali menjadi nama yang sebenarnya.
 
 **Output**</br>
+![Hasil 1c](./Foto/1c_1.PNG)
+![Hasil 1c](./Foto/1c_2.PNG)
 
 ### 1d
 **Soal**</br>
@@ -55,22 +166,58 @@ Setiap pembuatan direktori ter-encode (mkdir atau rename) akan tercatat ke sebua
 </br>
 
 **Penjelasan**</br>
-
+Dari semua soal 1a sampai 1d akan disimpan lognya ke dalam sebuah file yang berformatkan **/home/[USER]/Downloads/[Nama Direktori]** → **/home/[USER]/Downloads/AtoZ_[Nama Direktori]**
 </br>
 
 **Output**</br>
-
+![Hasil 1d](./Foto/1d.PNG)
 ### 1e
 **Soal**</br>
 Metode encode pada suatu direktori juga berlaku terhadap direktori yang ada di dalamnya. (rekursif)
 </br>
 
 **Penjelasan**</br>
+```C
+void renameRecursiveAtBash(const char *path) {
+    DIR *dp;
+    struct dirent *de;
 
-</br>
+    dp = opendir(path);
 
-**Output**</br>
+    if (dp == NULL) return;
 
+    while ((de = readdir(dp)) != NULL) {
+        if(!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+        char filename[100];
+        char oldPath[1100];
+        char newPath[1100];
+        char ext[20];
+
+        bzero(filename, sizeof(filename));
+        sprintf(filename, "%s", de->d_name);
+
+        // printf("\e[31m%s\e[0m\n", filename);
+        if(de->d_type == DT_DIR)
+            atBash(filename, ext, 0);
+        else
+            atBash(filename, ext, 1);
+
+        bzero(oldPath, sizeof(oldPath));
+        bzero(newPath, sizeof(newPath));
+        sprintf(oldPath, "%s/%s", path, de->d_name);
+        sprintf(newPath, "%s/%s%s", path, filename, ext);
+
+        if(de->d_type == DT_DIR) {
+            renameRecursiveAtBash(oldPath);
+        }
+
+        rename(oldPath, newPath);
+
+    }
+
+    closedir(dp);
+}
+```
 
 ## Soal 2
 ### Narasi Soal
