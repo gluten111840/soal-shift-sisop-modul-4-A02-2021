@@ -315,6 +315,9 @@ Fungsi ini dapat melakukan Encrypt dan Decrypt secara rekursif. Jika mode yang d
 </br>
 
 **Output**</br>
+![image](https://user-images.githubusercontent.com/57354564/121799569-71e93380-cc5f-11eb-8652-59b9558ffa53.png)
+
+![image](https://user-images.githubusercontent.com/57354564/121799586-904f2f00-cc5f-11eb-8e55-52f1229187e8.png)
 
 ### 2c
 **Soal**</br>
@@ -374,6 +377,10 @@ Pada potongan kode diatas, jika kita melakukan rename nama file awal memiliki aw
 </br>
 
 **Output**</br>
+![image](https://user-images.githubusercontent.com/57354564/121799582-8c231180-cc5f-11eb-9d48-6d5f3c87d414.png)
+
+![image](https://user-images.githubusercontent.com/57354564/121799575-79104180-cc5f-11eb-898b-323f43425f9b.png)
+
 
 ### 2d
 **Soal**</br>
@@ -438,6 +445,7 @@ Pertama kita membuat sebuah fungsi untuk mengecek apakah file log sudah terbuat 
 </br>
 
 **Output**</br>
+![image](https://user-images.githubusercontent.com/57354564/121799607-a65cef80-cc5f-11eb-9034-bdbf5f6a9e49.png)
 
 ### 2e
 **Soal**</br>
