@@ -630,6 +630,10 @@ static int xmp_create(const char* path, mode_t mode, struct fuse_file_info* fi) 
     if(res == -1)
 	return -errno;
 
+    char desc[1512];
+    sprintf(desc, "CREATE::%s", fullPath);
+    makeLog("INFO", desc);
+
     close(res);
 
     return 0;

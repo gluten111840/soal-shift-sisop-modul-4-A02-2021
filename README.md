@@ -816,10 +816,29 @@ Log system yang akan terbentuk bernama “SinSeiFS.log” pada direktori home pe
 
 **Penjelasan**</br>
 
-</br>
+File Log digunakan untuk menyimpan semua syscall yang telah dilakukan pada filesystem. Karena log bersifat menambah terus menerus, maka kita menggunakan append untuk menambah log.
 
+```C
+static const char *logpath = "/home/[USER]/SinSeiFS.log";
+
+void makeLog(char *level, char *desc)
+{
+    FILE * fp;
+    char waktu[1000];
+    char log[3000];
+    fp = fopen (logpath, "a+");
+    time_t rawtime = time(NULL);
+    struct tm *ambilrawtime = localtime(&rawtime);
+    strftime(waktu, 3001, "%d%m%Y-%H:%M:%S", ambilrawtime);
+    sprintf(log, "%s::%s::%s\n", level, waktu, desc);
+    printf("%s\n", log);
+    fputs(log, fp);
+
+    fclose(fp);
+}
+```
 **Output**</br>
-
+![Hasil 4a](./Foto/4a.PNG)
 ### 4b
 **Soal**</br>
 Karena Sin dan Sei suka kerapian maka log yang dibuat akan dibagi menjadi dua level, yaitu INFO dan WARNING.
@@ -827,9 +846,25 @@ Karena Sin dan Sei suka kerapian maka log yang dibuat akan dibagi menjadi dua le
 
 **Penjelasan**</br>
 
-</br>
+```C
+static int xmp_rename(const char *from, const char *to)
+{
+    ...
+    char desc[1512];
+    sprintf(desc, "RENAME::%s::%s", oldRPath, newRPath);
+    makeLog("INFO", desc);
+    ...
+}
 
-**Output**</br>
+static int xmp_rmdir(const char *path)
+{
+    ...
+    char desc[1512];
+    sprintf(desc, "RMDIR::%s", fullPath);
+    makeLog("WARNING", desc);
+    ...
+}
+```
 
 ### 4c
 **Soal**</br>
@@ -838,10 +873,25 @@ Untuk log level WARNING, digunakan untuk mencatat syscall rmdir dan unlink.
 </br>
 
 **Penjelasan**</br>
+```C
+static int xmp_rmdir(const char *path)
+{
+    ...
+    char desc[1512];
+    sprintf(desc, "RMDIR::%s", fullPath);
+    makeLog("WARNING", desc);
+    ...
+}
 
-</br>
-
-**Output**</br>
+static int xmp_unlink(const char *path)
+{
+    ...
+    char desc[1512];
+    sprintf(desc, "UNLINK::%s", fullPath);
+    makeLog("WARNING", desc);
+    ...
+}
+```
 
 ### 4d
 **Soal**</br>
@@ -850,9 +900,32 @@ Sisanya, akan dicatat pada level INFO.
 
 **Penjelasan**</br>
 
-</br>
+```C
+static int xmp_mkdir(const char *path, mode_t mode) {
+    ...
+    char desc[1024];
+    sprintf(desc, "MKDIR::%s", fullPath);
+    makeLog("INFO", desc);
+    ...
+}
 
-**Output**</br>
+static int xmp_rename(const char *from, const char *to)
+{
+    ...
+    char desc[1512];
+    sprintf(desc, "RENAME::%s::%s", oldRPath, newRPath);
+    makeLog("INFO", desc);
+    ...
+}
+
+static int xmp_create(const char* path, mode_t mode, struct fuse_file_info* fi) {
+    ...
+    char desc[1512];
+    sprintf(desc, "CREATE::%s", fullPath);
+    makeLog("INFO", desc);
+    ...
+}
+```
 
 ### 4e
 **Soal**</br>
@@ -868,8 +941,25 @@ INFO::28052021-10:01:00:RENAME::/test.txt::/rename.txt
 </br>
 
 **Penjelasan**</br>
+Untuk waktu diambil menggunakan `time_t` yang dapat menampilkan waktu saat sebuah perintah dijalankan.
+```C
+static const char *logpath = "/home/[USER]/SinSeiFS.log";
 
-</br>
+void makeLog(char *level, char *desc)
+{
+    FILE * fp;
+    char waktu[1000];
+    char log[3000];
+    fp = fopen (logpath, "a+");
+    time_t rawtime = time(NULL);
+    struct tm *ambilrawtime = localtime(&rawtime);
+    strftime(waktu, 3001, "%d%m%Y-%H:%M:%S", ambilrawtime);
+    sprintf(log, "%s::%s::%s\n", level, waktu, desc);
+    printf("%s\n", log);
+    fputs(log, fp);
 
+    fclose(fp);
+}
+```
 **Output**</br>
-
+![Hasil 4e](./Foto/4e.PNG)
